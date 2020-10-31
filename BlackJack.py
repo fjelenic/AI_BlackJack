@@ -7,67 +7,43 @@ class Game:
         self.deck = [2,3,4,5,6,7,8,9,10,10,10,10,'A']
         self.bet = 2
         '''
-        self.actions = {0:self.hit,
-                        1:self.stand,
-                        2:self.double,
-                        3:self.split}
+        self.actions = {0:hit,
+                        1:stand,
+                        2:double,
+                        3:split}
         '''
 
-    def play(self, player, player_hand=None, dealer_hand=None):
-        pot = self.bet
-        if not player_hand:
-            player_hand = Hand()
-            player_hand.add(self.draw())
-        player_hand.add(self.draw())
-        if not dealer_hand:
-            dealer_hand = Hand()
-            dealer_hand.add(self.draw())
-        if player_hand.value == 21:
-            dealer_hand.add((self.draw()))
-            if dealer_hand.value != 21:
-                pot += 3/2 * self.bet
-            return
-        action = player.action(player_hand,dealer_hand)
-        while action != 1:
-            if action == 0:
-                player_hand.add(self.draw())
-                if player_hand.value > 21:
-                    player.score -= pot
-                    return
-                if player_hand.value == 21:
-                    break
-            if action == 2:
-                player_hand.add(self.draw())
-                pot += self.bet
-                if player_hand.value > 21:
-                    player.score -= pot
-                    return
-                break
-            if action == 3:
-                new_hand1 = Hand()
-                new_hand2 = Hand()
-                if player_hand.soft:
-                    new_hand1.add('A')
-                    new_hand2.add('A')
-                else:
-                    new_hand1.add(int(player_hand.value/2))
-                    new_hand2.add(int(player_hand.value/2))
-                self.play(player,new_hand1,dealer_hand)
-                self.play(player,new_hand2,dealer_hand)
-                return
-            action = player.action(player_hand, dealer_hand)
+    def play(self, player):
+        dealer_hand = Hand(self)
+        dealer_hand.add(self.draw())
+        player_hand = PlayerHand(self,player)
+        hands = player_hand.decide(dealer_hand)
+        if dealer_hand == 21:
+            for hand in hands:
+                if hand.value != 'BJ':
+                    player.score -= hand.pot
+            return player
         while dealer_hand.value < 17:
             dealer_hand.add(self.draw())
         if dealer_hand.value > 21:
-            player.score += pot
-            return
-        if dealer_hand.value > player_hand.value:
-            player.score -= pot
-        elif player_hand.value > dealer_hand.value:
-            player.score += pot
-        return
-
-
+            for hand in hands:
+                if hand.value == 'BJ':
+                    player.score += int((3/2) * hand.pot)
+                elif hand.value > 21:
+                    player.score -= hand.pot
+                else:
+                    player.score += hand.pot
+            return player
+        for hand in hands:
+            if hand.value == 'BJ':
+                player.score += int((3/2) * hand.pot)
+            elif hand.value > 21:
+                player.score -= hand.pot
+            elif hand.value < dealer_hand.value:
+                player.score -= hand.pot
+            elif hand.value > dealer_hand.value:
+                player.score += hand.pot
+        return player
 
     def draw(self):
         return self.deck[np.random.randint(len(self.deck))]
@@ -77,11 +53,12 @@ class Game:
 
 class Hand:
 
-    def __init__(self):
+    def __init__(self, game):
         self.soft = False
         self.value = 0
         self.size = 0
         self.pair = False
+        self.game = game
 
     def add(self,card):
         self.pair = False
@@ -104,5 +81,51 @@ class Hand:
                 self.value += card
         self.size += 1
         return self
+
+
+class PlayerHand(Hand):
+
+    def __init__(self, game, player):
+        self.player = player
+        self.pot = 0
+        super().__init__(game)
+
+    def decide(self,dealer_hand,i=1):
+        self.pot += self.game.bet
+        if i == 1:
+            self.add(self.game.draw())
+        self.add(self.game.draw())
+        if self.value == 21:
+            self.value = 'BJ'
+            return [self]
+        action = self.player.action(self,dealer_hand)
+        while action != 1:
+            if action == 0:
+                self.add(self.game.draw())
+                if self.value >= 21:
+                    break
+            elif action == 2:
+                self.pot += self.game.bet
+                self.add(self.game.draw())
+                break
+            elif action == 3:
+                if self.soft:
+                    double_card = 'A'
+                else:
+                    double_card = int(self.value/2)
+                new_hand1 = PlayerHand(self.game,self.player).add(double_card)
+                new_hand2 = PlayerHand(self.game, self.player).add(double_card)
+                i += 1
+                decision1 = new_hand1.decide(dealer_hand,i)
+                decision2 = new_hand2.decide(dealer_hand,i)
+                return decision1 + decision2
+        return [self]
+
+
+
+
+
+
+
 
 
