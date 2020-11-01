@@ -4,7 +4,7 @@ import numpy as np
 class Game:
 
     def __init__(self):
-        self.deck = [2,3,4,5,6,7,8,9,10,10,10,10,'A']
+        self.deck = [2,3,4,5,6,7,8,9,10,10,10,10,'A']*4*8
         self.bet = 2
         '''
         self.actions = {0:hit,
@@ -18,7 +18,8 @@ class Game:
         dealer_hand.add(self.draw())
         player_hand = PlayerHand(self,player)
         hands = player_hand.decide(dealer_hand)
-        if dealer_hand == 21:
+        dealer_hand.add(self.draw())
+        if dealer_hand.value == 21:
             for hand in hands:
                 if hand.value != 'BJ':
                     player.score -= hand.pot
@@ -28,7 +29,7 @@ class Game:
         if dealer_hand.value > 21:
             for hand in hands:
                 if hand.value == 'BJ':
-                    player.score += int((3/2) * hand.pot)
+                    player.score += (3/2) * hand.pot
                 elif hand.value > 21:
                     player.score -= hand.pot
                 else:
@@ -36,7 +37,7 @@ class Game:
             return player
         for hand in hands:
             if hand.value == 'BJ':
-                player.score += int((3/2) * hand.pot)
+                player.score += (3/2) * hand.pot
             elif hand.value > 21:
                 player.score -= hand.pot
             elif hand.value < dealer_hand.value:
@@ -46,8 +47,13 @@ class Game:
         return player
 
     def draw(self):
-        return self.deck[np.random.randint(len(self.deck))]
+        if len(self.deck) < 13*2*8:
+            self.reshuffle()
+        return self.deck.pop(np.random.randint(len(self.deck)))
 
+    def reshuffle(self):
+        self.deck = [2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10, 'A'] * 4 * 8
+        return self
 
 
 
@@ -91,6 +97,8 @@ class PlayerHand(Hand):
         super().__init__(game)
 
     def decide(self,dealer_hand,i=1):
+        if i > 3:
+            self.pair = False
         self.pot += self.game.bet
         if i == 1:
             self.add(self.game.draw())
@@ -98,6 +106,9 @@ class PlayerHand(Hand):
         if self.value == 21:
             self.value = 'BJ'
             return [self]
+        #if self.value == 4 and not self.pair:
+        #    action = 0
+        #else:
         action = self.player.action(self,dealer_hand)
         while action != 1:
             if action == 0:
